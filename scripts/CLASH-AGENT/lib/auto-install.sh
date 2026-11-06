@@ -43,10 +43,14 @@ clash_agent_install_dependencies() {
     local -a packages=()
     command -v nginx >/dev/null 2>&1 && had_nginx=true
     for spec in curl:curl wget:wget jq:jq openssl:openssl tar:tar ss:iproute2 sysctl:procps \
-        mkswap:util-linux swapon:util-linux blkid:util-linux modprobe:kmod sudo:sudo nginx:nginx; do
+        mkswap:util-linux swapon:util-linux blkid:util-linux modprobe:kmod sudo:sudo nginx:nginx \
+        fail2ban-client:fail2ban iptables:iptables nft:nftables; do
         command=${spec%%:*}; package=${spec#*:}
         command -v "$command" >/dev/null 2>&1 || packages+=("$package")
     done
+    # The systemd journal backend needs the distro Python binding even when
+    # fail2ban is already installed and apt recommendations are disabled.
+    /usr/bin/python3 -c 'import systemd.journal' >/dev/null 2>&1 || packages+=(python3-systemd)
     if ((${#packages[@]})); then
         DEBIAN_FRONTEND=noninteractive apt-get update || return 1
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates "${packages[@]}" || return 1
@@ -259,7 +263,8 @@ clash_agent_verify_system() {
 clash_agent_print_result() {
     local url
     url=$(clash_agent_subscription_url "$CA_SERVER" "$CA_SUB_PORT" "$CA_TOKEN") || return 1
-    printf '\nCLASH-AGENT configured: Reality + Vision, BBR + fq, swap >= 1 GiB.\n'
+    printf '\nCLASH-AGENT configured: Reality + Vision, BBR + fq, swap >= 1 GiB, fail2ban SSH protection.\n'
+    printf 'SSH protection: 5 failures in 10 minutes trigger a 1-hour ban.\n'
     printf 'Reality TCP port: %s\nSubscription TCP port: %s\n' "$CA_REALITY_PORT" "$CA_SUB_PORT"
     printf 'Clash.Meta / mihomo subscription (HTTP; keep this URL private):\n%s\n' "$url"
     printf 'State: %s\nAllow the two TCP ports in any provider security group.\n' "$CA_STATE_FILE"
@@ -269,6 +274,7 @@ clash_agent_install() (
     umask 077
     clash_agent_paths
     clash_agent_preflight || return 1
+    export PATH="${PATH}:/usr/sbin:/sbin"
     # /run/lock can be world-writable. Keep our lock inside a private directory
     # under root-owned /run, and never truncate an existing lock target.
     [[ ! -L ${CA_LOCK_FILE%/*} && ! -L $CA_LOCK_FILE ]] || return 1
@@ -285,13 +291,14 @@ clash_agent_install() (
     clash_agent_prepare_state || return 1
     clash_agent_write_state installing || return 1
     clash_agent_configure_system || return 1
+    clash_agent_configure_fail2ban || return 1
     clash_agent_write_core_config || return 1
     installSingBoxService 2 defer || return 1
     clash_agent_write_subscription || return 1
     clash_agent_open_port "$CA_REALITY_PORT" && clash_agent_open_port "$CA_SUB_PORT" || return 1
     systemctl daemon-reload && systemctl enable sing-box.service clash-agent-subscription.service || return 1
     systemctl restart sing-box.service clash-agent-subscription.service || return 1
-    clash_agent_verify_services && clash_agent_check_subscription || return 1
+    clash_agent_verify_services && clash_agent_check_subscription && clash_agent_verify_fail2ban || return 1
     clash_agent_write_state ready || return 1
     clash_agent_print_result
 )

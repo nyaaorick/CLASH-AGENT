@@ -7,10 +7,12 @@ Set up a VPS with Reality + Vision and a ready-to-import Clash subscription in o
 Run this on the target VPS. No Git clone, source upload, or local checkout is needed:
 
 ```bash
-(set -e; installer=$(mktemp); trap 'rm -f "$installer"' EXIT; curl -fsSL https://raw.githubusercontent.com/nyaaorick/CLASH-AGENT/main/install.sh -o "$installer"; if [ "$(id -u)" -eq 0 ]; then bash "$installer"; else sudo bash "$installer"; fi)
+(set -e; installer=$(mktemp); trap 'rm -f "$installer"' EXIT; curl -fsSL https://raw.githubusercontent.com/nyaaorick/CLASH-AGENT/main/install.sh -o "$installer"; if [ "$(id -u)" -eq 0 ]; then bash "$installer"; else sudo env SSH_CONNECTION="${SSH_CONNECTION:-}" SSH_CLIENT="${SSH_CLIENT:-}" bash "$installer"; fi)
 ```
 
 The command downloads the complete standalone installer before executing it. Installation finishes by printing a Clash.Meta/mihomo subscription URL.
+
+The non-root branch forwards the current SSH connection details through `sudo` so the management address remains available to fail2ban setup.
 
 Requires Debian or Ubuntu, a running systemd host, amd64 or arm64, root privileges, and a kernel that supports BBR and swap. Outbound Internet access is needed to download packages and the sing-box core.
 
@@ -21,11 +23,14 @@ Requires Debian or Ubuntu, a running systemd host, amd64 or arm64, root privileg
 - **Reality target:** a random candidate from the upstream list, checked for a working TLS 1.3 connection.
 - **Networking:** BBR + fq, persisted across reboots.
 - **Swap:** at least 1 GiB; sufficient existing active swap is retained, otherwise a dedicated 1 GiB file is added without disabling existing swap.
+- **SSH protection:** fail2ban is installed and enabled automatically. Five failed SSH logins within 10 minutes trigger a 1-hour ban on the detected SSH ports.
 - **Client configuration:** a complete Clash.Meta/mihomo profile with its proxy, selection group, and routing rule, served by a separate nginx instance.
 
 The subscription uses **plaintext HTTP**, so no personal domain or certificate is required. Its random URL is an access credential: keep the full URL private. Configure HTTPS separately if encrypted subscription delivery is required. The Reality proxy connection uses Reality independently of subscription delivery.
 
 Allow the two printed TCP ports in your provider's security group or external firewall. The installer adds the required supported host-firewall rules, preserves existing nginx sites, and leaves SSH settings unchanged.
+
+The managed SSH policy is written to `/etc/fail2ban/jail.d/zz-clash-agent-sshd.local`. Fail2ban configuration retains unrelated jails and existing IP whitelists. When the current SSH management address is available, it is added to the ignore list. Configuration and runtime checks must pass before installation reports success.
 
 ## Repeat runs and management
 
@@ -38,7 +43,7 @@ The standalone installer accepts these commands:
 | Command | Action |
 | --- | --- |
 | `install` or no argument | Apply the unattended defaults. |
-| `show` | Check ready state, services, HTTP subscription, BBR, and swap, then print the existing link. |
+| `show` | Check ready state, services, HTTP subscription, BBR, swap, and SSH protection, then print the existing link. |
 | `menu` | Open the original advanced management menu. |
 | `--help` | Show usage without installing. |
 
@@ -57,6 +62,8 @@ bash scripts/CLASH-AGENT/build.sh
 This rebuilds the root `install.sh` as a single distributable file. Upstream self-update is disabled through the CLASH-AGENT entry point so it cannot replace this fork. Update the source and rebuild to publish changes.
 
 Validation includes isolated installation and failure-recovery tests, Bash syntax checks, and configuration parsing by real sing-box and mihomo binaries. A live VPS deployment and external reachability have not been verified.
+
+Version 1.1.0 adds automatic fail2ban protection to the existing one-command installation. Rerun the command on a managed installation to apply the new default while retaining its proxy credentials and ports.
 
 ## License and upstream
 

@@ -6,6 +6,7 @@ CLASH_AGENT_LIBRARY_ONLY=1
 source "${CLASH_AGENT_SOURCE_DIR}/lib/upstream.sh" || exit 1
 source "${CLASH_AGENT_SOURCE_DIR}/lib/system-defaults.sh" || exit 1
 source "${CLASH_AGENT_SOURCE_DIR}/lib/clash-subscription.sh" || exit 1
+source "${CLASH_AGENT_SOURCE_DIR}/lib/fail2ban.sh" || exit 1
 source "${CLASH_AGENT_SOURCE_DIR}/lib/auto-install.sh" || exit 1
 
 clash_agent_main() {
@@ -18,7 +19,7 @@ clash_agent_main() {
             clash_agent_paths
             clash_agent_read_state && [[ $CA_STATUS == ready ]] &&
                 clash_agent_verify_services && clash_agent_check_subscription &&
-                clash_agent_verify_system && clash_agent_print_result
+                clash_agent_verify_system && clash_agent_verify_fail2ban && clash_agent_print_result
             ;;
         menu)
             # Keep the original management menu available explicitly. Updating
@@ -44,12 +45,13 @@ CLASH-AGENT
 
 Defaults: random UUID, X25519 keys, short ID, node name, free TCP ports,
 Reality SNI and 256-bit subscription token; BBR + fq; at least 1 GiB swap;
+fail2ban SSH protection (5 failures in 10 minutes, 1-hour ban);
 self-contained Clash.Meta/mihomo subscription over HTTP (no domain needed).
 Requires root, Debian/Ubuntu, systemd and an amd64/arm64 Linux VPS.
 Optional: CLASH_AGENT_SERVER_IP and CLASH_AGENT_SERVER_NAME.
 EOF
             ;;
-        --version) printf 'CLASH-AGENT 1.0.0\n' ;;
+        --version) printf 'CLASH-AGENT 1.1.0\n' ;;
         *) clash_agent_error "Unknown command: $1"; return 1 ;;
     esac
 }

@@ -49,6 +49,9 @@ initRealityKey() {
     realityPublicKey=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 }
 clash_agent_configure_system() { stage system-defaults; }
+clash_agent_configure_fail2ban() { stage fail2ban; }
+clash_agent_verify_fail2ban() { stage verify-fail2ban; }
+clash_agent_verify_system() { stage verify-system; }
 installSingBoxService() {
     stage core-service || return 1
     [[ ${1:-} == 2 && ${2:-} == defer ]] || return 1
@@ -179,6 +182,13 @@ install_failure() {
 
 new_case fresh
 install_success
+python3 - "$TEST_EVENT_LOG" <<'PY'
+from pathlib import Path
+import sys
+events = Path(sys.argv[1]).read_text().splitlines()
+assert events.count('fail2ban') == 1, 'default installation skipped fail2ban'
+assert events.index('system-defaults') < events.index('fail2ban') < events.index('reality-emitter')
+PY
 jq -e '.product == "CLASH-AGENT" and .schema == 1 and .status == "ready" and
     .reality_port == 23456 and .subscription_port == 34567 and
     (.short_id | test("^[a-f0-9]{16}$")) and (.token | test("^[a-f0-9]{64}$")) and
@@ -208,6 +218,16 @@ for name in sys.argv[1:]:
 assert stat.S_IMODE(Path(sys.argv[1]).parent.stat().st_mode) == 0o700
 PY
 
+# Showing a completed install verifies SSH protection before returning its link.
+before_verify=$(grep -c '^verify-fail2ban$' "$TEST_EVENT_LOG" || true)
+clash_agent_main show >"$TEST_CASE_ROOT/show-output" 2>"$TEST_CASE_ROOT/show-errors" || fail 'show rejected a healthy managed installation'
+[[ $(grep -c '^verify-fail2ban$' "$TEST_EVENT_LOG") == $((before_verify+1)) ]] || fail 'show skipped SSH protection verification'
+grep -q '^CLASH-AGENT configured:' "$TEST_CASE_ROOT/show-output" || fail 'verified show omitted the result'
+export TEST_FAIL_STAGE=verify-fail2ban
+if clash_agent_main show >"$TEST_CASE_ROOT/show-output" 2>"$TEST_CASE_ROOT/show-errors"; then fail 'show ignored failed SSH protection'; fi
+if grep -Eq '^CLASH-AGENT configured:|^https?://' "$TEST_CASE_ROOT/show-output"; then fail 'show published a link with failed SSH protection'; fi
+unset TEST_FAIL_STAGE
+
 # A completed installation reruns without replacing its identities or token.
 identity=$(jq -cS 'del(.status)' "$CA_STATE_FILE")
 profile=$(cat "${CA_PROFILE_DIR}/clash.yaml")
@@ -218,13 +238,14 @@ install_success
 [[ $(grep -c '^generate-uuid$' "$TEST_EVENT_LOG") == 1 ]] || fail 'rerun regenerated UUID'
 [[ $(grep -c '^select-sni$' "$TEST_EVENT_LOG") == 1 ]] || fail 'rerun regenerated SNI'
 [[ $(grep -c '^random-port$' "$TEST_EVENT_LOG") == 2 ]] || fail 'rerun regenerated ports'
+[[ $(grep -c '^fail2ban$' "$TEST_EVENT_LOG") == 2 ]] || fail 'rerun skipped fail2ban protection'
 
 # Inject an error at every stage before final publication. Real file generation,
 # state reads/writes and profile rendering remain in place in each fixture.
 for failure in preflight lock dependencies prepare-core detect-ip select-sni random-port \
-    generate-uuid reality-keys state-initial state-installing system-defaults reality-emitter \
+    generate-uuid reality-keys state-initial state-installing system-defaults fail2ban reality-emitter \
     core-check core-service nginx-check open-reality open-subscription systemctl-daemon-reload \
-    systemctl-enable systemctl-restart verify-services subscription-fetch subscription-mismatch state-ready; do
+    systemctl-enable systemctl-restart verify-services subscription-fetch subscription-mismatch verify-fail2ban state-ready; do
     new_case "failure-$failure"
     export TEST_FAIL_STAGE=$failure
     install_failure
@@ -285,4 +306,4 @@ grep -q '^CLASH-AGENT$' "$TEST_CASE_ROOT/help"
 if clash_agent_main install unexpected >"$TEST_CASE_ROOT/output" 2>"$TEST_CASE_ROOT/errors"; then fail 'extra installation argument accepted'; fi
 [[ ! -s $TEST_EVENT_LOG ]] || fail 'invalid command triggered installation work'
 
-printf 'PASS: unattended orchestration, real Reality/Clash output, 25 failure stages, rerun/recovery, unmanaged paths, lock and corrupt state.\n'
+printf 'PASS: unattended orchestration, real Reality/Clash output, 27 failure stages, fail2ban default/rerun/show verification, recovery, unmanaged paths, lock and corrupt state.\n'
