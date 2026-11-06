@@ -51,7 +51,7 @@ Requires root, Debian/Ubuntu, systemd and an amd64/arm64 Linux VPS.
 Optional: CLASH_AGENT_SERVER_IP and CLASH_AGENT_SERVER_NAME.
 EOF
             ;;
-        --version) printf 'CLASH-AGENT 1.1.1\n' ;;
+        --version) printf 'CLASH-AGENT 1.1.2\n' ;;
         *) clash_agent_error "Unknown command: $1"; return 1 ;;
     esac
 }

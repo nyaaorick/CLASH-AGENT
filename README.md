@@ -65,7 +65,7 @@ Validation includes isolated installation and failure-recovery tests, Bash synta
 
 Version 1.1.0 adds automatic fail2ban protection to the existing one-command installation. Rerun the command on a managed installation to apply the new default while retaining its proxy credentials and ports.
 
-Version 1.1.1 also supports the legacy Fail2ban 0.10 configuration reader used by Debian 10.
+Version 1.1.2 also supports the legacy Fail2ban 0.10 configuration reader and its already-unbanned client response on Debian 10.
 
 ## License and upstream
 

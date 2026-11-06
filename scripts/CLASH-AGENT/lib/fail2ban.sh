@@ -125,6 +125,26 @@ clash_agent_fail2ban_wait() {
     clash_agent_fail2ban_error 'The Fail2ban SSH jail did not become ready.'
 }
 
+clash_agent_fail2ban_unban_client() {
+    local client=$1 output
+    if output=$(clash_agent_fail2ban_client set sshd unbanip "$client" 2>&1); then
+        [[ -z $output ]] || printf '%s\n' "$output"
+        return 0
+    fi
+    # Fail2ban 0.10 reports a missing ban as an error. Accept only its exact
+    # current-client response; socket, jail, action and other errors still fail.
+    if clash_agent_fail2ban_python - "$client" "$output" <<'PY'
+import sys
+message = sys.argv[1] + ' is not banned'
+expected = [message, 'NOK: ' + repr((message,))]
+actual = [line.strip() for line in sys.argv[2].splitlines()]
+raise SystemExit(0 if sorted(actual) == sorted(expected) else 1)
+PY
+    then return 0; fi
+    [[ -z $output ]] || printf '%s\n' "$output" >&2
+    return 1
+}
+
 clash_agent_verify_fail2ban() {
     local dir file ports actions action action_ports matched=false ignores expected_ignores key value
     dir=$(clash_agent_fail2ban_dir); file="${dir}/jail.d/zz-clash-agent-sshd.local"
@@ -227,7 +247,7 @@ EOF
     if { [[ $was_active == true ]] && ! clash_agent_fail2ban_client reload; } ||
        { [[ $was_active != true ]] && ! systemctl start fail2ban.service; } ||
        ! clash_agent_fail2ban_wait ||
-       { [[ -n $client ]] && ! clash_agent_fail2ban_client set sshd unbanip "$client"; } ||
+       { [[ -n $client ]] && ! clash_agent_fail2ban_unban_client "$client"; } ||
        ! systemctl enable fail2ban.service || ! clash_agent_verify_fail2ban; then
         clash_agent_fail2ban_rollback
         clash_agent_fail2ban_error 'Fail2ban activation or verification failed; the previous drop-in was restored.'

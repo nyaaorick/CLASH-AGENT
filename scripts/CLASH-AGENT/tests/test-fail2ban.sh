@@ -75,7 +75,36 @@ case ${1:-} in
         fi ;;
     set)
         [[ ${2:-} == sshd && ${3:-} == unbanip && -n ${4:-} && $# == 4 ]] || exit 90
-        [[ ${TEST_FAIL:-} != unban ]] ;;
+        [[ ${TEST_FAIL:-} != unban ]] || exit 1
+        case ${TEST_UNBAN_RESULT:-success} in
+            success) printf '%s\n' "$4" ;;
+            legacy-not-banned)
+                printf '%s is not banned\n' "$4"
+                printf " NOK: ('%s is not banned',)\n" "$4" >&2
+                exit 1 ;;
+            legacy-not-banned-reversed)
+                printf " NOK: ('%s is not banned',)\n" "$4" >&2
+                printf '%s is not banned\n' "$4"
+                exit 1 ;;
+            wrong-client)
+                printf '192.0.2.99 is not banned\n'
+                printf " NOK: ('192.0.2.99 is not banned',)\n" >&2
+                exit 1 ;;
+            unknown-jail)
+                printf "Sorry but the jail 'sshd' does not exist\n"
+                printf " NOK: ('sshd',)\n" >&2
+                exit 1 ;;
+            mixed-error)
+                printf '%s is not banned\n' "$4"
+                printf " NOK: ('Permission denied',)\n" >&2
+                exit 1 ;;
+            extra-error)
+                printf '%s is not banned\n' "$4"
+                printf " NOK: ('%s is not banned',)\n" "$4" >&2
+                printf 'Failed to access socket path\n' >&2
+                exit 1 ;;
+            *) exit 90 ;;
+        esac ;;
     get)
         [[ $2 == sshd ]] || exit 90
         case $3 in
@@ -109,7 +138,7 @@ cases=0
 new_case() {
     cases=$((cases+1))
     export TEST_DIR="${test_root}/$1" CLASH_AGENT_FAIL2BAN_DIR="${test_root}/$1/fail2ban"
-    unset TEST_FAIL TEST_PRIOR_IGNORES TEST_SOCKET_ACTIVE TEST_SOCKET_LISTEN TEST_SSHD_CONFIG TEST_READY_AFTER SSH_CLIENT
+    unset TEST_FAIL TEST_PRIOR_IGNORES TEST_SOCKET_ACTIVE TEST_SOCKET_LISTEN TEST_SSHD_CONFIG TEST_READY_AFTER TEST_UNBAN_RESULT SSH_CLIENT
     export TEST_LISTENERS='LISTEN 0 128 0.0.0.0:2222 0.0.0.0:* users:(("sshd",pid=42,fd=3))'
     export SSH_CONNECTION='198.51.100.17 52300 203.0.113.7 2222'
     mkdir -p "$CLASH_AGENT_FAIL2BAN_DIR/jail.d"
@@ -159,6 +188,25 @@ export SSH_CLIENT='2001:db8::17 52300 2222'
 clash_agent_configure_fail2ban
 grep -q '2001:db8::17$' "$(managed_file)"
 grep -qx 'client set sshd unbanip 2001:db8::17' "$TEST_DIR/events"
+
+for result in legacy-not-banned legacy-not-banned-reversed; do
+    new_case "$result"
+    export TEST_UNBAN_RESULT=$result
+    [[ $result != legacy-not-banned-reversed ]] || export SSH_CONNECTION='2001:db8::17 52300 2001:db8::7 2222'
+    clash_agent_configure_fail2ban
+    clash_agent_verify_fail2ban
+    [[ $(grep -c '^client set sshd unbanip ' "$TEST_DIR/events") == 1 ]]
+    ! grep -q '^systemctl stop' "$TEST_DIR/events"
+    assert_unrelated
+done
+
+for result in wrong-client unknown-jail mixed-error extra-error; do
+    new_case "fail-unban-$result"
+    export TEST_UNBAN_RESULT=$result
+    expect_failure clash_agent_configure_fail2ban
+    [[ ! -e $(managed_file) ]] || fail "New drop-in left after unban failure: $result"
+    assert_unrelated
+done
 
 new_case console-fallback
 unset SSH_CONNECTION

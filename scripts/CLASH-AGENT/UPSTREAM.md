@@ -2,7 +2,7 @@
 
 CLASH-AGENT is based on [mack-a/v2ray-agent](https://github.com/mack-a/v2ray-agent), maintained as ordinary source files in this repository.
 
-Patch 1.1.1 reads existing Fail2ban whitelists through the native public `get()` API, including legacy 0.10 adapters that do not expose `has_option()`.
+Patch 1.1.2 reads existing Fail2ban whitelists through the native public `get()` API, including legacy 0.10 adapters that do not expose `has_option()`, and accepts only the exact legacy response that the current management IP is already not banned.
 
 - Upstream branch: `master`
 - Imported commit: [`140b1659f1874aaefb1cdde412c6baefaf196198`](https://github.com/mack-a/v2ray-agent/commit/140b1659f1874aaefb1cdde412c6baefaf196198)
