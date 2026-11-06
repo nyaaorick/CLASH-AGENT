@@ -82,12 +82,17 @@ clash_agent_fail2ban_existing_ignores() {
     # Stock ignoreip may be undefined, so unconditional %(known/ignoreip)s is unsafe.
     clash_agent_fail2ban_python - "$(clash_agent_fail2ban_dir)" <<'PY'
 import sys
-from fail2ban.client.configreader import ConfigReader
+from fail2ban.client.configreader import ConfigReader, NoOptionError, NoSectionError
 reader = ConfigReader()
 reader.setBaseDir(sys.argv[1])
 if not reader.read('jail'):
     raise SystemExit('CLASH-AGENT: Cannot read the existing Fail2ban configuration.')
-print(reader.get('sshd', 'ignoreip') if reader.has_option('sshd', 'ignoreip') else '')
+# ConfigReader.get is available in 0.10 as well as newer releases; has_option
+# is absent from older adapters. Only a missing option/section means no whitelist.
+try:
+    print(reader.get('sshd', 'ignoreip'))
+except (NoOptionError, NoSectionError):
+    print('')
 PY
 }
 

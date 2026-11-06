@@ -65,6 +65,8 @@ Validation includes isolated installation and failure-recovery tests, Bash synta
 
 Version 1.1.0 adds automatic fail2ban protection to the existing one-command installation. Rerun the command on a managed installation to apply the new default while retaining its proxy credentials and ports.
 
+Version 1.1.1 also supports the legacy Fail2ban 0.10 configuration reader used by Debian 10.
+
 ## License and upstream
 
 GNU Affero General Public License v3.0. See [LICENSE](https://github.com/nyaaorick/CLASH-AGENT/blob/main/scripts/CLASH-AGENT/LICENSE), [upstream and modification notes](https://github.com/nyaaorick/CLASH-AGENT/blob/main/scripts/CLASH-AGENT/UPSTREAM.md), and the preserved [upstream README](https://github.com/nyaaorick/CLASH-AGENT/blob/main/scripts/CLASH-AGENT/README.upstream.md).

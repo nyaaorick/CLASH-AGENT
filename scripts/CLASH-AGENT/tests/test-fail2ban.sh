@@ -227,6 +227,44 @@ ln -s "$TEST_DIR/protected" "$(managed_file)"
 expect_failure clash_agent_configure_fail2ban
 [[ $(cat "$TEST_DIR/protected") == unrelated ]]
 
+# Exercise the adapter API shipped in Fail2ban 0.10: get() is public, but
+# has_option() is not. Use Python's parser so missing values, interpolation,
+# and parse errors retain their real exception behavior without a daemon.
+new_case legacy-configreader-api
+legacy_api="${test_root}/legacy-api"
+mkdir -p "$legacy_api/fail2ban/client"
+: >"$legacy_api/fail2ban/__init__.py"
+: >"$legacy_api/fail2ban/client/__init__.py"
+cat >"$legacy_api/fail2ban/client/configreader.py" <<'PY'
+import configparser
+import os
+from configparser import NoOptionError, NoSectionError
+
+class ConfigReader:
+    def __init__(self):
+        self.parser = configparser.ConfigParser()
+    def setBaseDir(self, basedir):
+        self.basedir = basedir
+    def read(self, name):
+        return self.parser.read([os.path.join(self.basedir, name + suffix)
+                                 for suffix in ('.conf', '.local')])
+    def get(self, section, option):
+        return self.parser.get(section, option)
+PY
+legacy_ignores() { PYTHONPATH="$legacy_api" clash_agent_fail2ban_native_ignores; }
+[[ -z $(legacy_ignores) ]]
+printf '[DEFAULT]\ntrusted = 192.0.2.0/24\nignoreip = %%(trusted)s\n[sshd]\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.conf"
+[[ $(legacy_ignores) == 192.0.2.0/24 ]]
+printf '[sshd]\nignoreip = %%(trusted)s 2001:db8::/32\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.local"
+[[ $(legacy_ignores) == '192.0.2.0/24 2001:db8::/32' ]]
+printf '[sshd]\nignoreip = %%(undefined)s\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.local"
+expect_failure legacy_ignores
+rm "$CLASH_AGENT_FAIL2BAN_DIR/jail.local"
+printf '[smtp]\nenabled = true\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.conf"
+[[ -z $(legacy_ignores) ]]
+rm "$CLASH_AGENT_FAIL2BAN_DIR/jail.conf"
+expect_failure legacy_ignores
+
 # Optional real-package parser check (no daemon). Fail2ban's distro Python
 # module is not installed on macOS, but CI/maintainers may supply its source.
 if [[ -n ${CLASH_AGENT_TEST_FAIL2BAN_PYTHONPATH:-} ]]; then
@@ -239,6 +277,10 @@ if "$CLASH_AGENT_FAIL2BAN_PYTHON" -c 'import fail2ban.client.configreader' >/dev
     [[ $(clash_agent_fail2ban_native_ignores) == 192.0.2.0/24 ]]
     printf '[sshd]\nignoreip = %%(known/ignoreip)s 2001:db8::/32\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.local"
     [[ $(clash_agent_fail2ban_native_ignores) == '192.0.2.0/24 2001:db8::/32' ]]
-    printf 'PASS: real Fail2ban ConfigReader (fresh, inherited, extended whitelist).\n'
+    printf '[sshd]\nignoreip = 203.0.113.0/24 admin.example\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.d/zz-custom.local"
+    [[ $(clash_agent_fail2ban_native_ignores) == '203.0.113.0/24 admin.example' ]]
+    printf '[sshd]\nignoreip = %%(undefined)s\n' >"$CLASH_AGENT_FAIL2BAN_DIR/jail.d/zz-custom.local"
+    expect_failure clash_agent_fail2ban_native_ignores
+    printf 'PASS: real Fail2ban ConfigReader (fresh, inherited, extended whitelist, drop-in precedence, interpolation errors).\n'
 fi
 printf 'PASS: %s isolated Fail2ban scenarios; no SSH, firewall, Fail2ban daemon or host configuration changes.\n' "$cases"
