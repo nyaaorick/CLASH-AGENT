@@ -1,0 +1,15 @@
+# Created by .ignore support plugin (hsz.mobi)
+.idea
+fodder/.DS_Store
+.github/FUNDING.yml
+.DS_Store
+GEMINI.md
+GEMINI.zh-CN.md
+AGENTS.md
+.worktrees/
+docs
+.playwright-mcp
+.sisyphus
+/.superpowers/
+/documents/issue*
+/documents/socks5-multi-outbound-routing-design.md
