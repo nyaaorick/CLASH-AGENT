@@ -16,4 +16,4 @@ The development entry point [install.sh](install.sh) and small `lib/` modules im
 
 The CLASH-AGENT entry point prevents upstream self-update from replacing this fork. Other retained upstream features may still download upstream resources; check their download sources when changing those features.
 
-Validation has been limited to local isolated tests, syntax checks, and configuration parsing. No live VPS deployment or external reachability is claimed.
+Validation includes local isolated tests, syntax checks, configuration parsing, and a 2026-11-06 live deployment of version 1.1.2 on Debian 10. The public subscription, Reality-only HTTPS and exit-IP checks, and an SSH fail2ban ban/unban test passed. Host credentials and deployment records remain outside the public repository.

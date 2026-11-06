@@ -21,7 +21,7 @@ Requires Debian or Ubuntu, a running systemd host, amd64 or arm64, root privileg
 - **Proxy:** sing-box, VLESS + Reality + Vision over TCP.
 - **Random values:** UUID, X25519 key pair, short ID, node name, two available TCP ports, and a 256-bit subscription token.
 - **Reality target:** a random candidate from the upstream list, checked for a working TLS 1.3 connection.
-- **Networking:** BBR + fq, persisted across reboots.
+- **Networking:** BBR and a persistent `fq` default. Existing interface qdiscs are not replaced.
 - **Swap:** at least 1 GiB; sufficient existing active swap is retained, otherwise a dedicated 1 GiB file is added without disabling existing swap.
 - **SSH protection:** fail2ban is installed and enabled automatically. Five failed SSH logins within 10 minutes trigger a 1-hour ban on the detected SSH ports.
 - **Client configuration:** a complete Clash.Meta/mihomo profile with its proxy, selection group, and routing rule, served by a separate nginx instance.
@@ -61,7 +61,7 @@ bash scripts/CLASH-AGENT/build.sh
 
 This rebuilds the root `install.sh` as a single distributable file. Upstream self-update is disabled through the CLASH-AGENT entry point so it cannot replace this fork. Update the source and rebuild to publish changes.
 
-Validation includes isolated installation and failure-recovery tests, Bash syntax checks, and configuration parsing by real sing-box and mihomo binaries. A live VPS deployment and external reachability have not been verified.
+Validation includes isolated installation and failure-recovery tests, Bash syntax checks, and configuration parsing by real sing-box and mihomo binaries. On 2026-11-06, version 1.1.2 was also verified on a fresh Debian 10 host with kernel 4.19, sing-box 1.14.4, and Fail2ban 0.10.2: public subscription HTTP 200, Reality-only HTTPS 204 requests, the expected exit IP, and a live SSH ban/unban test all passed.
 
 Version 1.1.0 adds automatic fail2ban protection to the existing one-command installation. Rerun the command on a managed installation to apply the new default while retaining its proxy credentials and ports.
 
