@@ -2,6 +2,14 @@
 
 Set up a VPS with Reality + Vision and a ready-to-import Clash subscription in one command. Built on [mack-a/v2ray-agent](https://github.com/mack-a/v2ray-agent), CLASH-AGENT reuses its core installation, Reality configuration, key generation, and service functions without the numbered installation menus.
 
+Version **1.2.0** also provides an automatic **Cloudflare + nginx TLS + VLESS-WS** option. Supply a hostname and an API token; DNS, certificate, private HTTPS subscription, origin protection and renewal are configured together. See the [Cloudflare mode guide](documents/cloudflare-ws.md) for token permissions, preconditions, explicit existing-install adoption and verification limits.
+
+```bash
+sudo bash install.sh install --mode cloudflare-ws --domain node.example.com --cf-token-file /root/cloudflare-token
+```
+
+Use a rebuilt 1.2.0+ artifact for this command. A local build does not update an older downloaded or published installer automatically. Omitting `--cf-token-file` uses `CF_API_TOKEN` or a hidden terminal prompt.
+
 ## Install from GitHub
 
 Run this on the target VPS. No Git clone, source upload, or local checkout is needed:
@@ -34,7 +42,7 @@ The managed SSH policy is written to `/etc/fail2ban/jail.d/zz-clash-agent-sshd.l
 
 ## Repeat runs and management
 
-Installations that CLASH-AGENT does not manage are left unchanged, and automatic installation stops. On a managed installation, rerunning the same command resumes an interrupted setup and keeps existing credentials and ports.
+The default Reality installer leaves unmanaged installations unchanged and stops. Cloudflare mode has a narrow, explicit `--adopt-existing` path for the documented nginx-fronted single WS layout; other layouts remain rejected. On a managed installation, rerunning the same mode resumes an interrupted setup and keeps existing identity.
 
 State is stored in `/etc/clash-agent/state.json`, including the private key and subscription credential. The state file is readable only by root.
 
@@ -62,6 +70,8 @@ bash scripts/CLASH-AGENT/build.sh
 This rebuilds the root `install.sh` as a single distributable file. Upstream self-update is disabled through the CLASH-AGENT entry point so it cannot replace this fork. Update the source and rebuild to publish changes.
 
 Validation includes isolated installation and failure-recovery tests, Bash syntax checks, and configuration parsing by real sing-box and mihomo binaries. On 2026-11-06, version 1.1.2 was also verified on a fresh Debian 10 host with kernel 4.19, sing-box 1.14.4, and Fail2ban 0.10.2: public subscription HTTP 200, Reality-only HTTPS 204 requests, the expected exit IP, and a live SSH ban/unban test all passed.
+
+Run all suites with `bash scripts/CLASH-AGENT/tests/run-all.sh`. Cloudflare coverage includes scoped API errors/DNS recovery, explicit adoption and service/config restoration, independent certificate maintenance, origin firewall preservation and real Linux nginx WS TCP/UDP integration. Real DNS/ACME deployment is a separate validation boundary.
 
 Version 1.1.0 adds automatic fail2ban protection to the existing one-command installation. Rerun the command on a managed installation to apply the new default while retaining its proxy credentials and ports.
 
